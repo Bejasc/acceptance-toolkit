@@ -33,9 +33,11 @@
   .brand{font-weight:700;letter-spacing:.2px;display:flex;align-items:center;gap:8px}
   .brand .logo{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,#2fb56a,#e6c534 45%,#e0533a);box-shadow:var(--shadow)}
   .grow{flex:1}
-  button, select, label.btn{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);
+  button, select, label.btn, a.btn{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);
     padding:7px 12px;border-radius:9px;cursor:pointer;box-shadow:var(--shadow)}
-  button:hover,label.btn:hover{border-color:var(--accent)}
+  button:hover,label.btn:hover,a.btn:hover{border-color:var(--accent)}
+  a.btn,label.btn{text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+  a.btn svg{display:block}
   button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
   .icon-btn{padding:7px 10px}
   select{padding:7px 10px}
@@ -115,7 +117,7 @@
     background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:99px;font-size:13px;pointer-events:none;transition:.2s;z-index:30}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .hidden{display:none!important}
-  @media(max-width:600px){ .vlabel{display:none} footer .wrap{height:auto;padding:10px 0} }
+  @media(max-width:600px){ .vlabel{display:none} .srclabel{display:none} footer .wrap{height:auto;padding:10px 0} }
 </style>
 </head>
 <body>
@@ -128,6 +130,9 @@
     <label class="btn" title="Load a .md acceptance guide">Load .md
       <input id="file" type="file" accept=".md,.markdown,.txt,text/markdown" hidden>
     </label>
+    <a class="btn" href="https://github.com/Bejasc/acceptance-toolkit" target="_blank" rel="noopener noreferrer" title="Acceptance Review Toolkit — view the source & skills on GitHub">
+      <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      <span class="srclabel">Source</span></a>
     <button id="theme" class="icon-btn" title="Toggle theme">◐</button>
   </div>
 </header>
@@ -145,6 +150,7 @@
     <textarea id="pasteArea" class="paste" placeholder="Paste the full markdown here, then click 'Render pasted'…"></textarea>
     <div class="row" id="pasteRow" style="display:none"><button id="renderPaste" class="primary">Render pasted</button></div>
     <p class="hint">Everything runs locally in your browser. Your progress is auto-saved on this device.</p>
+    <p class="hint">Part of the <a href="https://github.com/Bejasc/acceptance-toolkit" target="_blank" rel="noopener noreferrer">Acceptance Review Toolkit</a> — a portable loop for authoring &amp; signing off acceptance guides.</p>
   </section>
 
   <!-- rendered doc -->
