@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "acceptance-kit",
+  "owner": { "name": "bejasc" },
+  "metadata": {
+    "description": "Local marketplace hosting the Acceptance Review Toolkit plugin."
+  },
+  "plugins": [
+    {
+      "name": "acceptance-toolkit",
+      "source": ".",
+      "description": "Author acceptance guides, review them in a web viewer, and parse the feedback back into work. Bundles the acceptance-guide and acceptance-review skills plus the viewer."
+    }
+  ]
+}

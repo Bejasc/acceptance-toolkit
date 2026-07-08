@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "acceptance-toolkit",
+  "displayName": "Acceptance Review Toolkit",
+  "version": "1.0.0",
+  "description": "A portable, subject-agnostic review loop: author an acceptance guide, click through it in a self-contained web viewer (stoplight verdicts + notes), re-export the filled-in markdown, and parse the feedback back into tracked work. Two skills plus one HTML viewer, no external dependencies.",
+  "author": { "name": "bejasc" },
+  "license": "MIT",
+  "keywords": ["acceptance", "review", "checklist", "qa", "stoplight", "workflow", "portable"]
+}
