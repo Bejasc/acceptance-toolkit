@@ -154,12 +154,23 @@ acceptance-toolkit/               ← repo root = the plugin
 ├── tools/
 │   ├── plan-url.mjs              guide ⇄ share link (Node, stdlib only)
 │   └── plan_url.py               the same, for environments without Node
+├── scripts/
+│   ├── check-guides.mjs          share-link round-trip + manifest checks
+│   └── check-viewer.mjs          viewer makes no outbound requests
+├── .github/
+│   ├── workflows/                CI, viewer deploy, plugin release
+│   └── DEPLOY.md                 what to configure before deploy works
 ├── FORMAT.md                     the canonical format contract (both ends obey it)
 ├── TEMPLATE.md                   the fill-in template
 ├── examples/                     a worked, non-Unity example guide
 ├── LICENSE                       MIT
 └── README.md                     this file
 ```
+
+Both checks run on bare Node with no install — `node scripts/check-guides.mjs`
+and `node scripts/check-viewer.mjs`. CI runs the same two. See
+[`.github/DEPLOY.md`](.github/DEPLOY.md) for how the hosted viewer is published
+and how a release is cut.
 
 ## The format contract
 
