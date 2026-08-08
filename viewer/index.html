@@ -150,6 +150,7 @@
     <textarea id="pasteArea" class="paste" placeholder="Paste the full markdown here, then click 'Render pasted'…"></textarea>
     <div class="row" id="pasteRow" style="display:none"><button id="renderPaste" class="primary">Render pasted</button></div>
     <p class="hint">Everything runs locally in your browser. Your progress is auto-saved on this device.</p>
+    <p class="hint">Got a <strong>share link</strong> instead? Open it — a <code>#plan=…</code> link carries the whole guide and loads it straight in.</p>
     <p class="hint">Part of the <a href="https://github.com/Bejasc/acceptance-toolkit" target="_blank" rel="noopener noreferrer">Acceptance Review Toolkit</a> — a portable loop for authoring &amp; signing off acceptance guides.</p>
   </section>
 
@@ -176,6 +177,7 @@
     <span class="hint" id="footStatus"></span>
     <div class="grow"></div>
     <button id="resetBtn" title="Clear my verdicts for this doc">Reset</button>
+    <button id="shareBtn" title="Copy a link that reopens this guide — including your verdicts — anywhere">Copy link</button>
     <button id="copyPrompt" title="Copy a ready-to-send prompt for Claude">Copy review prompt</button>
     <button id="copyMd" title="Copy filled-in markdown">Copy markdown</button>
     <button id="exportBtn" class="primary" title="Download filled-in markdown">Export .md</button>
@@ -317,7 +319,7 @@ function parseCard(name,body){
 }
 
 /* ---------- state / storage ---------- */
-let DOC=null, KEY=null, FILENAME="acceptance.md", FILTER="all";
+let DOC=null, KEY=null, FILENAME="acceptance.md", FILTER="all", FROM_LINK=false;
 function hash(s){ let h=5381; for(let i=0;i<s.length;i++) h=((h<<5)+h+s.charCodeAt(i))>>>0; return h.toString(36); }
 function storeKey(g){ return "acceptit:"+hash(g.title+"|"+g.items.map(i=>i.id).join(",")); }
 function save(){
@@ -358,7 +360,8 @@ function renderDoc(){
   $("#doc").classList.remove("hidden");
   $("#footer").classList.remove("hidden");
   $("#docTitle").textContent=DOC.title;
-  $("#fileMeta").innerHTML = `<span>📄 ${escapeAttr(FILENAME)}</span><span>${DOC.items.length} items</span>`;
+  $("#fileMeta").innerHTML = `<span>📄 ${escapeAttr(FILENAME)}</span><span>${DOC.items.length} items</span>`
+    + (FROM_LINK?`<span title="This guide came from a share link">🔗 shared link</span>`:"");
   $("#intro").innerHTML = DOC.intro.length ? `<div class="intro">${block(DOC.intro)}</div>` : "";
   $("#setup").innerHTML = (DOC.setup && DOC.setup.join("").trim())
     ? `<details class="setup"><summary>Setup — how to get to a testable state</summary><div class="setup-body">${block(DOC.setup)}</div></details>` : "";
@@ -486,13 +489,115 @@ function fallbackCopy(text){ const ta=el("textarea"); ta.value=text; ta.style.po
 let toastT=null;
 function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),2200); }
 
+/* ---------- share links (the URL transport — FORMAT.md §8) ----------
+   A link carries the whole guide in its own address:  <viewer>#plan=<base64url>&name=<file.md>
+   where the bytes are raw-DEFLATE-compressed UTF-8 markdown (plain UTF-8 is also accepted).
+   The fragment form is preferred because a fragment is never sent to the server — the guide
+   stays in the reader's browser, exactly like a dropped file. tools/plan-url.mjs writes the
+   same payload from the command line. */
+
+// Where "Copy link" points when the viewer isn't itself served over http(s) (e.g. opened from disk).
+// Change this if you host the viewer somewhere else.
+const SHARE_BASE = "https://prototype.bejasc.dev/acceptance";
+
+function b64urlEncode(bytes){
+  let s=""; const CH=0x8000;
+  for(let i=0;i<bytes.length;i+=CH) s+=String.fromCharCode.apply(null,bytes.subarray(i,i+CH));
+  return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+}
+function b64urlDecode(str){
+  const s=String(str).replace(/\s+/g,"").replace(/-/g,"+").replace(/_/g,"/").replace(/=+$/,"");
+  const bin=atob(s + (s.length%4 ? "====".slice(s.length%4) : ""));
+  const out=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) out[i]=bin.charCodeAt(i);
+  return out;
+}
+async function pump(bytes,Ctor,fmt){
+  const s=new Ctor(fmt), w=s.writable.getWriter();
+  w.write(bytes).then(()=>w.close()).catch(()=>{});   // errors surface on the read side
+  const r=s.readable.getReader(), chunks=[]; let len=0;
+  for(;;){ const {done,value}=await r.read(); if(done) break; chunks.push(value); len+=value.length; }
+  const out=new Uint8Array(len); let o=0;
+  for(const c of chunks){ out.set(c,o); o+=c.length; }
+  return out;
+}
+async function encodePlan(md){
+  const plain=new TextEncoder().encode(md);
+  if(typeof CompressionStream==="function"){
+    try{ const z=await pump(plain,CompressionStream,"deflate-raw"); if(z.length<plain.length) return b64urlEncode(z); }
+    catch(e){ /* fall through to plain */ }
+  }
+  return b64urlEncode(plain);
+}
+// Returns every plausible decoding, best guess first; the caller keeps the one that parses.
+async function decodePlan(payload){
+  const bytes=b64urlDecode(payload), utf8=new TextDecoder("utf-8",{fatal:true}), out=[];
+  if(typeof DecompressionStream==="function"){
+    try{ out.push(utf8.decode(await pump(bytes,DecompressionStream,"deflate-raw"))); }catch(e){}
+  }
+  try{ out.push(utf8.decode(bytes)); }catch(e){}
+  return out;
+}
+// Read straight off the raw href — URLSearchParams would mangle a "+" in a standard-base64 payload.
+function linkParam(name){
+  const m=location.href.match(new RegExp("[#?&]"+name+"=([^&#\\s]*)"));
+  return m ? m[1] : null;
+}
+function safeName(s){
+  const n=String(s||"").split(/[\\/]/).pop().replace(/[<>:"|?*\x00-\x1f]/g,"").trim();
+  if(!n) return "shared-acceptance.md";
+  return /\.(md|markdown|txt)$/i.test(n) ? n : n+".md";
+}
+function shareLink(){
+  const here = /^https?:$/.test(location.protocol) ? location.origin+location.pathname : SHARE_BASE;
+  return encodePlan(buildMarkdown()).then(p =>
+    here+"#plan="+p+"&name="+encodeURIComponent(FILENAME));
+}
+function copyShareLink(){
+  if(!DOC) return;
+  shareLink().then(url=>{
+    copy(url);
+    if(url.length>8000) toast("Link copied — but it's "+url.length+" chars; some apps truncate long links");
+    else toast("Link copied ("+url.length+" chars) — it carries the guide and your verdicts");
+  }).catch(()=>toast("Couldn't build a link in this browser"));
+}
+async function openFromLink(){
+  const payload=linkParam("plan");
+  if(!payload) return false;
+  const nameParam=linkParam("name");
+  let name="shared-acceptance.md";
+  if(nameParam){ try{ name=safeName(decodeURIComponent(nameParam)); }catch(e){ name=safeName(nameParam); } }
+  let candidates=[];
+  try{ candidates=await decodePlan(decodeURIComponent(payload)); }
+  catch(e){ toast("That link's payload isn't readable"); return false; }
+  for(const md of candidates){ if(parseGuide(md).items.length) return open(md,name,{fromLink:true}); }
+  toast(candidates.length ? "That link didn't contain a valid acceptance guide"
+                          : "That link needs a newer browser to unpack");
+  return false;
+}
+
 /* ---------- open ---------- */
-function open(md,filename){
+function open(md,filename,opts){
   const g=parseGuide(md);
-  if(!g.items.length){ toast("No verdict table found — is this an acceptance guide?"); return; }
-  DOC=g; FILENAME=filename||"acceptance.md"; KEY=storeKey(g); FILTER="all";
-  load(); renderDoc(); save();
+  if(!g.items.length){ toast("No verdict table found — is this an acceptance guide?"); return false; }
+  DOC=g; FILENAME=filename||"acceptance.md"; KEY=storeKey(g); FILTER="all"; FROM_LINK=!!(opts&&opts.fromLink);
+  if(!adoptIncoming()) load();
+  renderDoc(); save();
   window.scrollTo(0,0);
+  return true;
+}
+// True when the verdicts the document arrived with should win over the ones saved on this device —
+// so a filled-in link (or a *-reviewed.md) isn't silently overwritten by stale local progress.
+function adoptIncoming(){
+  const marked=i=> i.verdict!=="⚫" || (i.note||"").trim();
+  if(!DOC.items.some(marked)) return false;                    // nothing came with it
+  let stored=null; try{ stored=JSON.parse(localStorage.getItem(KEY)||"null"); }catch(e){}
+  if(!stored) return true;
+  const storedMarked=Object.keys(stored).some(k=>stored[k] && (stored[k].v!=="⚫" || (stored[k].n||"").trim()));
+  if(!storedMarked) return true;                               // saved state is blank — nothing to lose
+  const same=DOC.items.every(i=>{ const s=stored[i.id]||{}; return (s.v||"⚫")===i.verdict && (s.n||"")===(i.note||""); });
+  if(same) return true;
+  return confirm("This guide arrived with verdicts already filled in, and you have different progress saved on this device.\n\nOK — use the verdicts it came with\nCancel — keep the progress saved here");
 }
 function readFile(f){ const r=new FileReader(); r.onload=()=>open(String(r.result),f.name); r.readAsText(f); }
 
@@ -505,6 +610,7 @@ $("#demoBtn").onclick=()=>open(DEMO,"example-checkout-acceptance.md");
 $("#exportBtn").onclick=download;
 $("#copyMd").onclick=copyMd;
 $("#copyPrompt").onclick=copyPrompt;
+$("#shareBtn").onclick=copyShareLink;
 $("#resetBtn").onclick=()=>{ if(!DOC)return; if(!confirm("Clear your verdicts and notes for this document?"))return;
   DOC.items.forEach(i=>{i.verdict="⚫";i.note="";}); save(); renderDoc(); toast("Reset"); };
 $("#recent").onchange=e=>{ const k=e.target.value; if(!k)return;
@@ -524,6 +630,11 @@ function setTheme(t){ document.documentElement.setAttribute("data-theme",t); try
 themeBtn.onclick=()=>{ const cur=document.documentElement.getAttribute("data-theme")|| (matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light"); setTheme(cur==="dark"?"light":"dark"); };
 try{ const saved=localStorage.getItem("acceptit:theme"); if(saved) setTheme(saved); }catch(e){}
 renderRecent();
+
+// a #plan= link in the address bar opens the guide it carries — on load, and on paste-in
+let LAST_PAYLOAD=linkParam("plan");
+addEventListener("hashchange",()=>{ const p=linkParam("plan"); if(p && p!==LAST_PAYLOAD){ LAST_PAYLOAD=p; openFromLink(); } });
+openFromLink();
 
 /* ---------- bundled example (project-agnostic) ---------- */
 const DEMO = `# Checkout Flow — Acceptance & Review

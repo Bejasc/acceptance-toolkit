@@ -13,12 +13,12 @@ This skill is project-agnostic and self-contained. It is the **generate** half o
 **review** half is the `acceptance-review` skill. Together:
 
 ```
-acceptance-guide → human clicks through it in viewer/index.html → re-export → acceptance-review
+acceptance-guide → share link → human clicks the dots in the viewer → link/.md back → acceptance-review
 ```
 
 ## Bundled files (find them, don't hardcode a path)
 
-This skill ships alongside three files at the package root. When installed as a plugin they resolve via
+This skill ships alongside these files at the package root. When installed as a plugin they resolve via
 `${CLAUDE_PLUGIN_ROOT}`; when the skills were copied in standalone, look one level up from this skill
 folder (the toolkit root):
 
@@ -26,6 +26,8 @@ folder (the toolkit root):
   defines the exact grammar every tool in the loop obeys; do not restate or diverge from it here.
 - **`${CLAUDE_PLUGIN_ROOT}/TEMPLATE.md`** — the fill-in template to copy.
 - **`${CLAUDE_PLUGIN_ROOT}/viewer/index.html`** — the web viewer the human uses to click through the guide.
+- **`${CLAUDE_PLUGIN_ROOT}/tools/plan-url.mjs`** — turns a saved guide into a one-click share link
+  (Python twin: `tools/plan_url.py`). See *Hand over a share link* below.
 
 If `${CLAUDE_PLUGIN_ROOT}` is unset (standalone install), the same files sit at the toolkit root next to
 `skills/`.
@@ -63,9 +65,33 @@ One guide can span several related plans.
    defaulting to `⚫`. This single table is the reviewer's fill-in surface **and** the parse target; the
    item cards below are the how-to-test reference — no verdict slot on the cards (avoid double-entry).
 6. **Keep the stoplight legend** (FORMAT.md §3.2) near the top with a copy-paste palette.
-7. **Save** the guide, then **surface it to the user**: send the file, restate the legend, and tell them
-   they can review it visually by opening `${CLAUDE_PLUGIN_ROOT}/viewer/index.html` and dropping the
-   file in (click the dots, add notes, **Export .md**).
+7. **Save** the guide, then **surface it to the user**: the file path, the legend, and — the fastest
+   route into review — a **share link** (next section). Without a link, they can still open
+   `${CLAUDE_PLUGIN_ROOT}/viewer/index.html` and drop the file in.
+
+## Hand over a share link (do this every time)
+
+A guide is far more likely to actually get reviewed if handing it over costs one click. Encode the
+saved file into a URL that opens it straight in the hosted viewer — the whole guide travels inside the
+link's fragment, so nothing is uploaded and no server sees it (FORMAT.md §8):
+
+```
+node "${CLAUDE_PLUGIN_ROOT}/tools/plan-url.mjs" <path/to/guide.md> --markdown
+```
+
+- Prints a ready-to-paste markdown link. Drop `--markdown` for a bare URL, add `--json` for the URL
+  plus stats.
+- **Default host** is `https://prototype.bejasc.dev/acceptance`. Override per-run with
+  `--base <url>`, or set `ACCEPTANCE_VIEWER_URL` for the environment. If the project pins its own
+  viewer, use that.
+- No Node? `python "${CLAUDE_PLUGIN_ROOT}/tools/plan_url.py" <guide.md> --markdown` does the same.
+- On Windows, pass a path the interpreter can resolve (e.g. `F:/proj/docs/...`), not a shell-style one.
+- The tool refuses a file that isn't a valid guide — treat that as a real failure and fix the file
+  against FORMAT.md rather than reaching for `--force`.
+- If it warns the link is over ~8000 characters, say so and offer the file instead: long links get
+  truncated by some chat clients.
+
+Then present **both** — the link to click and the file path — so the user can pick.
 
 ## Verify before handing off
 
@@ -74,7 +100,9 @@ One guide can span several related plans.
   citation (test-verified).
 - The verdict table lists every item once; each `Verdict` cell starts as `⚫`.
 - The stoplight legend + copy-paste palette are present; section order follows the template.
-- The guide is saved and surfaced to the user, with the viewer path.
+- The guide is saved and surfaced to the user, with a working share link **and** the file path.
+- The share link was actually generated this session (the encoder ran and printed a URL) — don't
+  hand-write one or promise a link you didn't produce.
 
 Quick self-check: drop the finished guide into the viewer — if every item appears with its Steps/Expected
 and a clickable stoplight, it conforms.
