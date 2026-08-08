@@ -9,6 +9,11 @@ A **standard, repeatable** way to hand built work back for human review. Where a
 Criteria* say what "done" means, an acceptance guide is how a human **confirms** it — item by item, with
 one consistent stoplight verdict — so iterating on any work feels the same, whatever the subject matter.
 
+**This is not an automated test suite, and the name misleads people who assume it is.** Every item ends
+in a human reading something and deciding. Even an item phrased as a measurement — a frame time, a byte
+count, a wave curve — still needs a person to look at the number and judge whether it's acceptable. A
+guide that could be replaced by CI shouldn't be a guide.
+
 This skill is project-agnostic and self-contained. It is the **generate** half of the loop; the
 **review** half is the `acceptance-review` skill. Together:
 
@@ -50,7 +55,14 @@ unclear; never assume a project-specific tool or command.
 - a chunk lands that needs a human judgement (feel, look, UX) the tests can't give, or
 - work is handed off with pieces deferred and the user needs to know exactly what to check now.
 
-One guide can span several related plans.
+**A guide can also be authored ahead of the implementation**, straight from a plan's *Acceptance
+Criteria*, and doing so is deliberate rather than premature. A guide written after the fact gets quietly
+shaped by whatever the code turned out to do; one derived from the criteria before the code exists
+cannot be. Where the plan's criteria are the spec, the guide is the instrument that signs them off — so
+each item can double as the generation brief and the acceptance bar.
+
+One guide can span several related plans — a milestone-wide checklist is often the right unit, and the
+items don't have to share an owner.
 
 ## Author a new guide
 
