@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "acceptance-toolkit",
   "displayName": "Acceptance Review Toolkit",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "A portable, subject-agnostic review loop: author an acceptance guide, hand it over as a one-click share link, click through it in a self-contained web viewer (stoplight verdicts + notes), and parse the feedback back into tracked work. Two skills, one HTML viewer, and a link encoder — no external dependencies.",
   "author": { "name": "bejasc" },
   "license": "MIT",

@@ -15,6 +15,9 @@
  *      other. Deflate output is implementation-defined, so payloads are allowed
  *      to differ; the recovered markdown is not.
  *   4. both plugin manifests are valid JSON and carry a semver version
+ *   5. the viewer's own decoder — lifted out of the HTML and run here — recovers
+ *      what the CLI produced, in both wire forms, and returns nothing at all for
+ *      a truncated payload
  *
  *   node scripts/check-guides.mjs
  */
@@ -103,6 +106,98 @@ for (const guide of GUIDES) {
   }
 }
 
+// 5 — the encoder ↔ viewer contract.
+//
+// Checks 1-3 prove the two encoders agree with each other, which says nothing
+// about the end that actually matters to a reviewer: the viewer's decoder. That's
+// a third implementation, living inside an HTML file nothing imports, and a change
+// to it breaks every share link ever handed out with no other check noticing. The
+// hosted viewer once sat months behind the repo with no share-link support at all
+// and every check still passed.
+//
+// So: lift the decode path out of the HTML and run it here, against links the real
+// CLI just produced.
+function sliceFunction(src, name) {
+  const sig = new RegExp(`(?:async\\s+)?function\\s+${name}\\s*\\(`);
+  const m = src.match(sig);
+  if (!m) return null;
+  let i = src.indexOf('{', m.index + m[0].length - 1);
+  if (i < 0) return null;
+  for (let depth = 0; i < src.length; i++) {
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}' && --depth === 0) return src.slice(m.index, i + 1);
+  }
+  return null;
+}
+
+const VIEWER_FNS = ['b64urlDecode', 'pump', 'canInflateRaw', 'decodePlan'];
+let viewer = null;
+try {
+  const html = readFileSync('viewer/index.html', 'utf8');
+  const js = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1]).join('\n');
+  const parts = [];
+  for (const name of VIEWER_FNS) {
+    const fn = sliceFunction(js, name);
+    if (!fn) throw new Error(`no function ${name}() — the decode path moved; update VIEWER_FNS`);
+    parts.push(fn);
+  }
+  viewer = new Function(`${parts.join('\n')}\nreturn { decodePlan, canInflateRaw };`)();
+} catch (e) {
+  fail('viewer/index.html', `couldn't lift the decode path out — ${e.message}`);
+}
+
+const payloadOf = (url) => decodeURIComponent(url.match(/[#?&]plan=([^&#\s]*)/)[1]);
+
+if (viewer) {
+  if (!viewer.canInflateRaw()) {
+    fail('viewer/index.html', 'canInflateRaw() is false on this runtime — the deflate check cannot run');
+  }
+  for (const guide of GUIDES) {
+    if (!existsSync(guide)) continue;
+    const original = readFileSync(guide, 'utf8');
+
+    // Both wire forms — FORMAT.md §8.1 requires a reader to accept either.
+    for (const [label, args] of [
+      ['compressed', [MJS, guide, '--quiet']],
+      ['uncompressed', [MJS, guide, '--raw', '--quiet']],
+    ]) {
+      let url;
+      try {
+        url = run('node', args).trim();
+      } catch (e) {
+        fail(guide, `node encode (${label}) failed — ${String(e.stderr || e.message).trim()}`);
+        continue;
+      }
+      const got = await viewer.decodePlan(payloadOf(url));
+      if (!got.some((md) => norm(md) === norm(original))) {
+        fail(guide, `the viewer's decoder could not recover the ${label} link`);
+      }
+    }
+
+    // The bug this guards: a truncated payload used to be reported as "needs a
+    // newer browser". Zero candidates while canInflateRaw() is true is exactly
+    // the state that must produce the truncation message instead.
+    //
+    // Cut on a 4-char boundary so base64 stays well-formed and the failure lands
+    // in the inflate, not in atob. A ragged cut throws out of b64urlDecode, which
+    // the viewer catches separately — also correct, but a different branch.
+    const full = payloadOf(run('node', [MJS, guide, '--quiet']).trim());
+    const cut = full.slice(0, Math.floor(full.length / 2 / 4) * 4);
+    let fromCut;
+    try {
+      fromCut = await viewer.decodePlan(cut);
+    } catch {
+      fromCut = null; // threw before producing candidates — still "unreadable", still not a false pass
+    }
+    if (fromCut && fromCut.some((md) => norm(md) === norm(original))) {
+      fail(guide, 'a half-length payload still decoded — the truncation check is not testing anything');
+    }
+    if (fromCut && fromCut.length) {
+      fail(guide, `a truncated payload produced ${fromCut.length} candidate(s) — the viewer would report the wrong reason`);
+    }
+  }
+}
+
 // 4 — the manifests are what `/plugin marketplace add` reads. Invalid JSON here
 // breaks installation for everyone, and nothing else in the repo parses them.
 for (const manifest of ['.claude-plugin/plugin.json', '.claude-plugin/marketplace.json']) {
@@ -133,7 +228,8 @@ try {
 
 const checked = GUIDES.length;
 console.log(
-  `Checked ${checked} guide${checked === 1 ? '' : 's'} (round-trip${python ? ' + cross-encoder' : ''}) and 2 manifests\n`,
+  `Checked ${checked} guide${checked === 1 ? '' : 's'} (round-trip${python ? ' + cross-encoder' : ''}` +
+    `${viewer ? ' + viewer decoder' : ''}) and 2 manifests\n`,
 );
 
 if (errors.length) {
