@@ -1,0 +1,82 @@
+# Release — cut a tag when the plugin version changes.
+#
+# The plugin is installed with `/plugin marketplace add Bejasc/acceptance-toolkit`,
+# which tracks a branch. With no tags there is nothing to pin to and nothing to
+# roll back to, and a project vendoring the skills has to record a commit SHA
+# because there is no version to record. This makes plugin.json's `version` the
+# single source of truth: bump it in a normal commit, and merging that commit
+# cuts the tag and the release.
+#
+# Deliberately not a release-on-every-push: a version bump is a decision, and
+# tying the tag to the field means the manifest can never claim a version that
+# was never released.
+
+name: Release
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  release:
+    name: Tag and release
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-${{ github.repository }}
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0 # tags, and the history --generate-notes reads
+
+      - name: Read the manifest version
+        id: manifest
+        run: |
+          VERSION=$(node -p "require('./.claude-plugin/plugin.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Manifest is at v$VERSION"
+
+      # The common case by far: a commit that didn't touch the version. Skipping
+      # here rather than failing keeps the workflow quiet on ordinary merges.
+      - name: Does that tag already exist?
+        id: check
+        run: |
+          if git rev-parse -q --verify "refs/tags/${{ steps.manifest.outputs.tag }}" >/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "${{ steps.manifest.outputs.tag }} already exists — nothing to release."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "${{ steps.manifest.outputs.tag }} is new — releasing."
+          fi
+
+      - name: Tag
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.manifest.outputs.tag }}" \
+            -m "Acceptance Review Toolkit ${{ steps.manifest.outputs.version }}"
+          git push origin "${{ steps.manifest.outputs.tag }}"
+
+      # viewer/index.html is attached on its own as well as in the source archive:
+      # the README's "just the viewer" path is a single file someone downloads and
+      # opens, and making them unpack a tarball to get it defeats the point.
+      - name: Release
+        if: steps.check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.manifest.outputs.tag }}" \
+            --title "Acceptance Review Toolkit ${{ steps.manifest.outputs.version }}" \
+            --generate-notes \
+            viewer/index.html

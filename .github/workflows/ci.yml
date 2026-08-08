@@ -1,0 +1,41 @@
+# CI — what a toolkit with no build and no test framework can still prove.
+#
+# There is nothing to compile and nothing to install. The two things that can
+# actually break for a user are the share link (a bad encode looks fine and
+# decodes to the wrong guide) and the viewer's self-containment (a remote asset
+# works on the author's machine and nowhere else). Both are checked here.
+#
+# Dependency-free by design: no lockfile, no install step, so the gate can't fail
+# for a reason that has nothing to do with the toolkit.
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # Only so the Node and Python encoders can be checked against each other.
+      # The check skips cleanly when python is absent; here it never is.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Guides, encoders and manifests
+        run: node scripts/check-guides.mjs
+
+      - name: Viewer self-containment
+        run: node scripts/check-viewer.mjs

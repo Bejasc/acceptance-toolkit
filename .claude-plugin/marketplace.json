@@ -9,7 +9,7 @@
     {
       "name": "acceptance-toolkit",
       "source": ".",
-      "description": "Author acceptance guides, review them in a web viewer, and parse the feedback back into work. Bundles the acceptance-guide and acceptance-review skills plus the viewer."
+      "description": "Author acceptance guides, hand them over as one-click share links, review them in a web viewer, and parse the feedback back into work. Bundles the acceptance-guide and acceptance-review skills, the viewer, and the link encoder."
     }
   ]
 }

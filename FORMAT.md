@@ -1,7 +1,7 @@
 # Acceptance Guide Format — the contract
 
 This is the **single source of truth** for the acceptance-guide markdown format. The generator skill
-(`acceptance-guide`) writes to this spec; the web viewer (`viewer/index.html`) and the review skill
+(`acceptance-guide`) writes to this spec; the hosted web viewer (<https://prototype.bejasc.dev/acceptance/>) and the review skill
 (`acceptance-review`) read to it. Because both ends obey one grammar, the review loop is a **lossless,
 bidirectional round-trip**:
 
@@ -121,3 +121,71 @@ When the viewer exports, it rewrites **only the Verdict cells** of the table; ev
 source markdown is preserved exactly. A generated guide → imported → exported → re-parsed yields the
 same items, verdicts, and notes. This is what makes the input and output of the review loop consistent
 across environments and projects.
+
+## 8. Share links (the URL transport)
+
+A guide can travel **inside a URL** instead of as a file, so a chat message can hand someone a link
+that opens the whole thing in the viewer. The link carries the markdown; nothing is uploaded anywhere
+and no server stores the guide.
+
+```
+<viewer-url>#plan=<payload>[&name=<filename>]      ← canonical
+<viewer-url>?plan=<payload>[&name=<filename>]      ← also accepted
+```
+
+### 8.1 The payload
+
+`<payload>` is **base64url** — the `A–Z a–z 0–9 - _` alphabet, padding stripped — of either:
+
+1. the **raw-DEFLATE** (RFC 1951, no zlib/gzip wrapper) compression of the guide's UTF-8 bytes
+   — the canonical form, roughly 3–4× shorter; or
+2. the guide's **plain UTF-8 bytes**, for producers without a DEFLATE implementation.
+
+Writers should emit form 1 and fall back to form 2 (also when compression would make it *longer*).
+Readers **must accept both**: try raw-inflate first, then plain UTF-8, and keep whichever decoding
+parses as a valid guide per §2. The two forms are self-distinguishing in practice — inflating plain
+markdown fails, and DEFLATE output is almost never valid UTF-8 — so no version tag is needed.
+
+Readers should also tolerate standard base64 (`+` `/` `=`) and stray whitespace.
+
+### 8.2 The parameters
+
+| Param | Required | Meaning |
+|-------|----------|---------|
+| `plan` | yes | the payload above |
+| `name` | no | percent-encoded filename to show and to base the export name on; readers strip any path and default to `shared-acceptance.md` |
+
+### 8.3 Fragment vs. query
+
+**Prefer the fragment (`#plan=`).** A fragment is never sent to the server, so the guide stays in the
+reader's browser and never reaches a web-server log or an analytics pipeline — the same privacy
+property as dropping the file in. The `?plan=` query form exists for hosts that need the server to
+see the parameter; it is read identically.
+
+### 8.4 What the payload contains
+
+Whatever markdown the producer had — **including verdicts already filled in**. A link is therefore
+usable in both directions: hand out a fresh guide (every cell `⚫`), or send a reviewed one back with
+dots and notes intact. Escaping inside verdict cells is unchanged (§3.1); the URL layer transports
+bytes and interprets nothing.
+
+When a link's guide arrives with verdicts and the reader also has different saved local progress for
+the same document, the reader must ask which to keep rather than silently discarding either.
+
+### 8.5 Size
+
+Links grow with the guide. Past roughly **8000 characters**, some chat clients, proxies, and email
+gateways truncate — producers should warn at that point and send the file instead. A typical
+10–15 item guide compresses to well under half that.
+
+### 8.6 Producing one
+
+`tools/plan-url.mjs` (Node) and `tools/plan_url.py` (Python) implement this section in both
+directions — stdlib only, no network:
+
+```
+node tools/plan-url.mjs docs/acceptance/042-foo-acceptance.md     # → link
+node tools/plan-url.mjs --decode "<link>" --out guide.md          # → markdown
+```
+
+The viewer's **Copy link** button produces the same thing from the current on-screen state.

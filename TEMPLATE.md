@@ -29,11 +29,11 @@ useful (e.g. `🟡 — too slow`). Copy the dot you want from here:
 
 **Copy-paste palette:**  🟢  🟡  🔴  ⚪  ⚫
 
-> **Tip:** drop this file into the **Acceptance Review** web viewer (`viewer/index.html`) to click the
-> dots and add notes visually, then re-export the filled-in markdown. When you've filled it in, tell the
-> assistant to **review your feedback** — it parses each row's dot (+ note) and acts: 🟡/🔴 become work
-> items it fixes and reports back **per ID**, 🟢 passes, ⚪/⚫ it leaves. Then it updates the table so it
-> stays the living record.
+> **Tip:** review this visually in the **Acceptance Review** web viewer — open the share link you were
+> given, or drop this file into <https://prototype.bejasc.dev/acceptance/>. Click the dots, add notes, then hand it back with
+> **Copy link** (a URL carrying your verdicts) or **Export .md**. Tell the assistant to **review your
+> feedback** — it parses each row's dot (+ note) and acts: 🟡/🔴 become work items it fixes and reports
+> back **per ID**, 🟢 passes, ⚪/⚫ it leaves. Then it updates the table so it stays the living record.
 
 ## Verdict table
 

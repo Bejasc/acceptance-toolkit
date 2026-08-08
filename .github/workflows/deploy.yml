@@ -1,0 +1,161 @@
+# Deploy — publish the viewer to the hosted URL every skill points at.
+#
+# The whole release is one self-contained HTML file, so this is a copy, not a
+# build-and-unpack. No artifact tarball, no node_modules, no releases/ + symlink
+# dance: there is exactly one file to swap, and `mv` on the same filesystem is
+# atomic, so no reader ever sees a half-written page.
+#
+# Why this URL and not a nicer one: `https://prototype.bejasc.dev/acceptance` is
+# hardcoded as DEFAULT_BASE in both encoders, cited in FORMAT.md §8, and baked
+# into every share link ever handed to a reviewer. The URL is an API. Moving it
+# breaks links that already exist in other people's chat history.
+#
+# Written up as Variant D in infra's standards/cicd-deploys.md.
+
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  actions: read
+
+env:
+  PROJECT_NAME: acceptance-toolkit
+  HEALTH_URL: https://prototype.bejasc.dev/acceptance/
+
+jobs:
+  deploy:
+    name: Deploy viewer
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-${{ github.repository }}
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0 # full history so the Discord "what shipped" log can diff the push range
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh/
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      # VERSION is what the health check reads back. It proves the deploy landed
+      # end to end — Apache picked it up, the gateway is serving the new file,
+      # and Cloudflare isn't handing out a cached copy of the old one.
+      - name: Stamp VERSION
+        run: echo "${{ github.event.workflow_run.head_sha }}" > VERSION
+
+      - name: Upload
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }}"
+          $SSH "mkdir -p ${{ secrets.DEPLOY_PATH }}"
+          scp -i ~/.ssh/deploy_key viewer/index.html \
+            ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }}:${{ secrets.DEPLOY_PATH }}/index.html.new
+          scp -i ~/.ssh/deploy_key VERSION \
+            ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }}:${{ secrets.DEPLOY_PATH }}/VERSION.new
+
+      # Same filesystem, so each mv is a single rename(2). index.html goes last:
+      # if the run dies between the two, a stale VERSION is a confusing health
+      # check, but a half-published viewer is a broken page.
+      - name: Swap into place
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }} "
+            set -e
+            cd ${{ secrets.DEPLOY_PATH }}
+            mv -f VERSION.new VERSION
+            mv -f index.html.new index.html
+          "
+
+      - name: Health check
+        run: |
+          sleep 2
+          DEPLOYED=$(curl -sSf --max-time 10 ${{ env.HEALTH_URL }}VERSION | tr -d '[:space:]')
+          EXPECTED="${{ github.event.workflow_run.head_sha }}"
+          if [ "$DEPLOYED" != "$EXPECTED" ]; then
+            echo "FAIL: expected VERSION $EXPECTED, got '$DEPLOYED'"
+            exit 1
+          fi
+          # The viewer is useless to the skills if it can't open a share link, and
+          # that is exactly the drift this pipeline exists to end: the hosted copy
+          # sat months behind the repo with no #plan= support at all.
+          if ! curl -sSf --max-time 10 ${{ env.HEALTH_URL }} | grep -q 'plan='; then
+            echo "FAIL: the served viewer has no share-link handling"
+            exit 1
+          fi
+
+      - name: Notify Discord
+        if: always()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_DEPLOYS }}
+          DISCORD_USERNAME: ${{ secrets.DISCORD_USERNAME }}
+          DISCORD_AVATAR: ${{ secrets.DISCORD_AVATAR }}
+        run: |
+          [ -n "${DISCORD_WEBHOOK:-}" ] || exit 0
+          set -uo pipefail
+          STATUS="${{ job.status }}"
+          SHA="${{ github.event.workflow_run.head_sha }}"
+          SHORT_SHA=$(echo "$SHA" | cut -c1-7)
+          LIVE="${{ env.HEALTH_URL }}"
+          COMMIT_URL="${{ github.server_url }}/${{ github.repository }}/commit/$SHA"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          THUMB="https://github.com/${{ github.actor }}.png"
+          TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          if git rev-parse --verify -q "$SHA~1" >/dev/null; then
+            CHANGES=$(git log --no-merges --pretty='• %s' "$SHA~1..$SHA" | head -8)
+          fi
+          [ -z "${CHANGES:-}" ] && CHANGES="• $(git log -1 --pretty=%s "$SHA")"
+
+          if [ "$STATUS" = "success" ]; then
+            COLOR=3066993
+            TITLE="✅ ${{ env.PROJECT_NAME }} · viewer deployed"
+            DESC="**What shipped**"$'\n'"$CHANGES"
+          else
+            COLOR=15158332
+            TITLE="❌ ${{ env.PROJECT_NAME }} · deploy failed"
+            DESC="The deploy didn't complete — check the run logs below."
+          fi
+          USERNAME="${DISCORD_USERNAME:-${{ env.PROJECT_NAME }}}"
+
+          PAYLOAD=$(jq -n \
+            --arg username "$USERNAME" \
+            --arg avatar "${DISCORD_AVATAR:-}" \
+            --arg title "$TITLE" \
+            --arg liveurl "$LIVE" \
+            --arg desc "$DESC" \
+            --arg live "[Open the viewer]($LIVE)" \
+            --arg commit "[\`$SHORT_SHA\`]($COMMIT_URL) by ${{ github.actor }}" \
+            --arg run "[View logs]($RUN_URL)" \
+            --arg thumb "$THUMB" \
+            --arg ts "$TS" \
+            --arg footer "${{ github.repository }} · $SHORT_SHA" \
+            --argjson color "$COLOR" \
+            '{
+              username: $username,
+              embeds: [{
+                title: $title,
+                url: $liveurl,
+                description: $desc,
+                color: $color,
+                thumbnail: { url: $thumb },
+                timestamp: $ts,
+                fields: [
+                  { name: "🔗 Live", value: $live, inline: true },
+                  { name: "📦 Commit", value: $commit, inline: true },
+                  { name: "🧾 Run", value: $run, inline: true }
+                ],
+                footer: { text: $footer }
+              }]
+            }
+            | if ($avatar | length) > 0 then .avatar_url = $avatar else . end')
+          curl -s -X POST "$DISCORD_WEBHOOK" -H "Content-Type: application/json" --data-binary "$PAYLOAD"
