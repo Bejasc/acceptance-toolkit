@@ -79,10 +79,18 @@ decoded link is an ordinary guide.
    The new link carries the dots you just updated, so the user sees exactly what changed and can
    re-review the rows still open. (`--base <url>` / `ACCEPTANCE_VIEWER_URL` picks the host.)
 
+   **Surface it as a clickable markdown link — `[text](url)` — never a bare URL.** A share link runs
+   to hundreds or thousands of characters; printed bare into a terminal or chat it soft-wraps, and a
+   click then opens a truncated payload that fails to inflate. The error the user sees blames the
+   guide or their browser, not the paste, so this wastes real time. `--markdown` emits the link form
+   already — use it. Where markdown can't render, put the raw URL alone on its own line and say it
+   must be copied whole.
+
 ## Verify before handing back
 
 - Every 🟡/🔴 row was either actioned-and-verified (dot updated with a note) or explicitly flagged back
   to the user as ambiguous/blocked.
 - The verdict table reflects the new state; nothing the user set was silently overwritten. Re-parsing
   the updated file still satisfies FORMAT.md (so it can go back through the viewer for another pass).
-- You reported per ID and re-surfaced the updated guide — file path **and** a freshly generated link.
+- You reported per ID and re-surfaced the updated guide — file path **and** a freshly generated link,
+  the link rendered as `[text](url)` rather than bare.

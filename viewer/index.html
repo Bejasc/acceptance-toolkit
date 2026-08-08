@@ -529,10 +529,17 @@ async function encodePlan(md){
   }
   return b64urlEncode(plain);
 }
+// Does this browser really have raw DEFLATE? Asked separately from "did the decode
+// work", because a failed decode is far more often a truncated link than an old
+// browser, and blaming the browser sends people hunting for the wrong problem.
+function canInflateRaw(){
+  if(typeof DecompressionStream!=="function") return false;
+  try{ new DecompressionStream("deflate-raw"); return true; }catch(e){ return false; }
+}
 // Returns every plausible decoding, best guess first; the caller keeps the one that parses.
 async function decodePlan(payload){
   const bytes=b64urlDecode(payload), utf8=new TextDecoder("utf-8",{fatal:true}), out=[];
-  if(typeof DecompressionStream==="function"){
+  if(canInflateRaw()){
     try{ out.push(utf8.decode(await pump(bytes,DecompressionStream,"deflate-raw"))); }catch(e){}
   }
   try{ out.push(utf8.decode(bytes)); }catch(e){}
@@ -569,10 +576,16 @@ async function openFromLink(){
   if(nameParam){ try{ name=safeName(decodeURIComponent(nameParam)); }catch(e){ name=safeName(nameParam); } }
   let candidates=[];
   try{ candidates=await decodePlan(decodeURIComponent(payload)); }
-  catch(e){ toast("That link's payload isn't readable"); return false; }
+  // Ragged base64 throws in atob before any candidate exists. Same root cause as
+  // the zero-candidate case below — a link cut short — so say the same thing.
+  catch(e){ toast("That link's payload isn't readable — it was probably cut short; copy the whole URL"); return false; }
   for(const md of candidates){ if(parseGuide(md).items.length) return open(md,name,{fromLink:true}); }
+  // Nothing decoded at all is almost always a link that got cut short — a bare URL
+  // wraps in a terminal or chat and a click takes only the first line. Say that,
+  // and only blame the browser after actually testing for the API.
   toast(candidates.length ? "That link didn't contain a valid acceptance guide"
-                          : "That link needs a newer browser to unpack");
+        : canInflateRaw()  ? "That link looks truncated — copy the whole URL (they're long), or ask for the .md file"
+                           : "This browser can't unpack compressed links — it has no deflate-raw support");
   return false;
 }
 

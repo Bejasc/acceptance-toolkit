@@ -94,8 +94,20 @@ link's fragment, so nothing is uploaded and no server sees it (FORMAT.md §8):
 node "${CLAUDE_PLUGIN_ROOT}/tools/plan-url.mjs" <path/to/guide.md> --markdown
 ```
 
-- Prints a ready-to-paste markdown link. Drop `--markdown` for a bare URL, add `--json` for the URL
-  plus stats.
+> **Always surface the link as a clickable markdown link — `[text](url)` — never as a bare URL.**
+> That's what `--markdown` is for; use it. A share link is hundreds to thousands of characters, and a
+> bare URL printed into a terminal or a chat message gets **soft-wrapped across lines**. Clicking it
+> then opens a *truncated* payload, which fails to inflate and surfaces as a misleading error about
+> the guide or the browser rather than about the link. The user sees a broken tool, not a broken
+> paste. Wrapping the URL in link syntax makes it one anchor with no visible line breaks, so this
+> cannot happen.
+>
+> This applies **everywhere a link is mentioned** — the handover, a follow-up message, a re-shared
+> link after edits, a PR comment. If the surface genuinely can't render markdown, put the raw URL on
+> its **own line with nothing before or after it**, and say it must be copied whole.
+
+- Prints a ready-to-paste markdown link. `--json` gives the URL plus stats; a bare URL (no flag) is
+  for piping into another tool, not for showing a human.
 - **Default host** is `https://prototype.bejasc.dev/acceptance`. Override per-run with
   `--base <url>`, or set `ACCEPTANCE_VIEWER_URL` for the environment. If the project pins its own
   viewer, use that.
@@ -106,7 +118,7 @@ node "${CLAUDE_PLUGIN_ROOT}/tools/plan-url.mjs" <path/to/guide.md> --markdown
 - If it warns the link is over ~8000 characters, say so and offer the file instead: long links get
   truncated by some chat clients.
 
-Then present **both** — the link to click and the file path — so the user can pick.
+Then present **both** — the link to click (as `[…](…)`) and the file path — so the user can pick.
 
 ## Verify before handing off
 
@@ -118,6 +130,8 @@ Then present **both** — the link to click and the file path — so the user ca
 - The guide is saved and surfaced to the user, with a working share link **and** the file path.
 - The share link was actually generated this session (the encoder ran and printed a URL) — don't
   hand-write one or promise a link you didn't produce.
+- **The link is rendered as `[text](url)`, not as a bare URL.** A wrapped URL is a truncated payload
+  the moment someone clicks it.
 
 Quick self-check: drop the finished guide into `https://prototype.bejasc.dev/acceptance/` — if every item
 appears with its Steps/Expected and a clickable stoplight, it conforms.
