@@ -25,12 +25,15 @@ folder (the toolkit root):
 - **`${CLAUDE_PLUGIN_ROOT}/FORMAT.md`** — the authoritative format contract. **Read it first.** It
   defines the exact grammar every tool in the loop obeys; do not restate or diverge from it here.
 - **`${CLAUDE_PLUGIN_ROOT}/TEMPLATE.md`** — the fill-in template to copy.
-- **`${CLAUDE_PLUGIN_ROOT}/viewer/index.html`** — the web viewer the human uses to click through the guide.
 - **`${CLAUDE_PLUGIN_ROOT}/tools/plan-url.mjs`** — turns a saved guide into a one-click share link
   (Python twin: `tools/plan_url.py`). See *Hand over a share link* below.
 
 If `${CLAUDE_PLUGIN_ROOT}` is unset (standalone install), the same files sit at the toolkit root next to
 `skills/`.
+
+The **web viewer the human clicks through is hosted** — at `https://prototype.bejasc.dev/acceptance/`
+unless the project pins its own. Send them there. Never tell the user to open a viewer file off disk;
+the toolkit ships one so a copy can be self-hosted, not so a reviewer has to find it.
 
 ## Usage
 
@@ -67,7 +70,7 @@ One guide can span several related plans.
 6. **Keep the stoplight legend** (FORMAT.md §3.2) near the top with a copy-paste palette.
 7. **Save** the guide, then **surface it to the user**: the file path, the legend, and — the fastest
    route into review — a **share link** (next section). Without a link, they can still open
-   `${CLAUDE_PLUGIN_ROOT}/viewer/index.html` and drop the file in.
+   `https://prototype.bejasc.dev/acceptance/` and drop the file in.
 
 ## Hand over a share link (do this every time)
 
@@ -104,8 +107,8 @@ Then present **both** — the link to click and the file path — so the user ca
 - The share link was actually generated this session (the encoder ran and printed a URL) — don't
   hand-write one or promise a link you didn't produce.
 
-Quick self-check: drop the finished guide into the viewer — if every item appears with its Steps/Expected
-and a clickable stoplight, it conforms.
+Quick self-check: drop the finished guide into `https://prototype.bejasc.dev/acceptance/` — if every item
+appears with its Steps/Expected and a clickable stoplight, it conforms.
 
 ## Relationship to the plan
 

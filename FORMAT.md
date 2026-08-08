@@ -1,7 +1,7 @@
 # Acceptance Guide Format — the contract
 
 This is the **single source of truth** for the acceptance-guide markdown format. The generator skill
-(`acceptance-guide`) writes to this spec; the web viewer (`viewer/index.html`) and the review skill
+(`acceptance-guide`) writes to this spec; the hosted web viewer (<https://prototype.bejasc.dev/acceptance/>) and the review skill
 (`acceptance-review`) read to it. Because both ends obey one grammar, the review loop is a **lossless,
 bidirectional round-trip**:
 
