@@ -103,6 +103,13 @@ python tools/plan_url.py docs/acceptance/042-checkout-acceptance.md --markdown  
 Both are stdlib-only — no install, no network. `--base <url>` (or `ACCEPTANCE_VIEWER_URL`) points at
 your own viewer instead of the default host; `--decode` turns a link back into markdown.
 
+`--markdown` is the flag to keep reaching for. It prints `[title — open in the viewer](url)` rather
+than a bare URL, and that matters more than it looks: these links run to thousands of characters, and
+a bare one pasted into a terminal or a chat soft-wraps across lines. Click it and you get only the
+first line — a truncated payload that can't inflate, reported as a confusing error about the guide or
+your browser rather than about the paste. As a link, there are no line breaks to cut. See
+[FORMAT.md §8.6](FORMAT.md#86-handing-one-over).
+
 **Sending one back.** The viewer's **Copy link** button encodes the *current* state — your dots and
 notes included. Paste that into a chat and say *"review my feedback"*; `acceptance-review` decodes it
 and gets to work. Files still work exactly as before; the link is just the zero-friction path.

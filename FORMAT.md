@@ -178,7 +178,24 @@ Links grow with the guide. Past roughly **8000 characters**, some chat clients, 
 gateways truncate — producers should warn at that point and send the file instead. A typical
 10–15 item guide compresses to well under half that.
 
-### 8.6 Producing one
+### 8.6 Handing one over
+
+**Render a share link as a link, not as text.** In any surface that supports it — markdown chat, a PR
+comment, an issue, a generated document — emit `[text](url)` so the URL becomes a single anchor. A
+bare URL of this length soft-wraps at the display width, and a click or a copy then takes only the
+first visual line. The result is a truncated payload: it won't inflate, and it won't decode as UTF-8
+either, so a reader following §8.1 ends up with **no** valid candidate and reports something
+unhelpful — "not a valid guide", or worse, a guess about browser support. The user reads that as a
+broken tool when the link was simply cut in half.
+
+Readers should keep this failure mode in mind when writing their own diagnostics: *no candidate
+decoded* means the payload is unreadable, which is far more often truncation than a missing
+`DecompressionStream`. Say so, and only blame the environment after actually testing for the API.
+
+Where markdown genuinely isn't available, put the URL alone on its own line with nothing before or
+after it, and say it must be copied whole.
+
+### 8.7 Producing one
 
 `tools/plan-url.mjs` (Node) and `tools/plan_url.py` (Python) implement this section in both
 directions — stdlib only, no network:
