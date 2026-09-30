@@ -1,6 +1,6 @@
 ---
 name: acceptance-guide
-description: Author an acceptance & review guide — a per-item verdict table (steps, a pass bar, and a red/yellow/green/white/black stoplight verdict) that hands built work back for human review. Use when a plan or milestone reaches a reviewable state (feel/look/UX judgements the tests can't give, or a handoff with deferred pieces), or when the user asks for an acceptance or review guide. To parse the filled-in feedback afterwards, use the companion `acceptance-review` skill.
+description: Author an acceptance & review guide — a per-item verdict table (steps, a pass bar, and a red/yellow/green/white/black stoplight verdict) that hands built work back for human review. Use only when the user asks for an acceptance or review guide; when a plan or milestone reaches a reviewable state, offer one in a single line instead of writing it unasked. To parse the filled-in feedback afterwards, use the companion `acceptance-review` skill.
 ---
 
 # Acceptance Guide (author)
@@ -23,18 +23,16 @@ acceptance-guide → share link → human clicks the dots in the viewer → link
 
 ## Bundled files (find them, don't hardcode a path)
 
-This skill ships alongside these files at the package root. When installed as a plugin they resolve via
-`${CLAUDE_PLUGIN_ROOT}`; when the skills were copied in standalone, look one level up from this skill
-folder (the toolkit root):
+This skill ships alongside these files at the toolkit root, written `<toolkit>` below. Installed as a
+plugin, `<toolkit>` is `${CLAUDE_PLUGIN_ROOT}`. Copied in standalone (vendored into a project's
+`.claude/skills/`, say), `${CLAUDE_PLUGIN_ROOT}` is unset and `<toolkit>` is the folder one level up from
+this skill. Resolve it once and use the real path in every command.
 
-- **`${CLAUDE_PLUGIN_ROOT}/FORMAT.md`** — the authoritative format contract. **Read it first.** It
-  defines the exact grammar every tool in the loop obeys; do not restate or diverge from it here.
-- **`${CLAUDE_PLUGIN_ROOT}/TEMPLATE.md`** — the fill-in template to copy.
-- **`${CLAUDE_PLUGIN_ROOT}/tools/plan-url.mjs`** — turns a saved guide into a one-click share link
-  (Python twin: `tools/plan_url.py`). See *Hand over a share link* below.
-
-If `${CLAUDE_PLUGIN_ROOT}` is unset (standalone install), the same files sit at the toolkit root next to
-`skills/`.
+- **`<toolkit>/FORMAT.md`** — the authoritative format contract. **Read it first.** It defines the exact
+  grammar every tool in the loop obeys; do not restate or diverge from it here.
+- **`<toolkit>/TEMPLATE.md`** — the fill-in template to copy.
+- **`<toolkit>/tools/plan-url.mjs`** — turns a saved guide into a one-click share link (Python twin:
+  `tools/plan_url.py`). See *Hand over a share link* below.
 
 The **web viewer the human clicks through is hosted** — at `https://prototype.bejasc.dev/acceptance/`
 unless the project pins its own. Send them there. Never tell the user to open a viewer file off disk;
@@ -49,11 +47,15 @@ the toolkit ships one so a copy can be self-hosted, not so a reviewer has to fin
 Output goes wherever the host project keeps acceptance guides — default `docs/acceptance/`. Ask if
 unclear; never assume a project-specific tool or command.
 
-## When to produce one
+## When to offer one
 
-- A plan (or a cohesive milestone) is code-complete and heading for manual verification / merge, or
+A guide costs the reviewer time, so it is suggested, never automatic. Offer one in a single line when:
+
+- a plan (or a cohesive milestone) is code-complete and heading for manual verification / merge, or
 - a chunk lands that needs a human judgement (feel, look, UX) the tests can't give, or
 - work is handed off with pieces deferred and the user needs to know exactly what to check now.
+
+Author it only when the user asks for one or says yes to the offer.
 
 **A guide can also be authored ahead of the implementation**, straight from a plan's *Acceptance
 Criteria*, and doing so is deliberate rather than premature. A guide written after the fact gets quietly
@@ -91,7 +93,7 @@ saved file into a URL that opens it straight in the hosted viewer — the whole 
 link's fragment, so nothing is uploaded and no server sees it (FORMAT.md §8):
 
 ```
-node "${CLAUDE_PLUGIN_ROOT}/tools/plan-url.mjs" <path/to/guide.md> --markdown
+node "<toolkit>/tools/plan-url.mjs" <path/to/guide.md> --markdown
 ```
 
 > **Always surface the link as a clickable markdown link — `[text](url)` — never as a bare URL.**
@@ -111,7 +113,7 @@ node "${CLAUDE_PLUGIN_ROOT}/tools/plan-url.mjs" <path/to/guide.md> --markdown
 - **Default host** is `https://prototype.bejasc.dev/acceptance`. Override per-run with
   `--base <url>`, or set `ACCEPTANCE_VIEWER_URL` for the environment. If the project pins its own
   viewer, use that.
-- No Node? `python "${CLAUDE_PLUGIN_ROOT}/tools/plan_url.py" <guide.md> --markdown` does the same.
+- No Node? `python "<toolkit>/tools/plan_url.py" <guide.md> --markdown` does the same.
 - On Windows, pass a path the interpreter can resolve (e.g. `F:/proj/docs/...`), not a shell-style one.
 - The tool refuses a file that isn't a valid guide — treat that as a real failure and fix the file
   against FORMAT.md rather than reaching for `--force`.
