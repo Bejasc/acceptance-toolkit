@@ -16,11 +16,16 @@ Because every guide obeys one grammar, this procedure is identical no matter the
 
 ## Bundled files
 
-The authoritative format lives at **`${CLAUDE_PLUGIN_ROOT}/FORMAT.md`** (or the toolkit root, one level
-up from this skill folder, on a standalone install). **Read it first** — it defines the verdict-cell
-grammar, the escaping rules, and the stoplight vocabulary you parse here. Do not diverge from it.
+The bundled files sit at the toolkit root, written `<toolkit>` below. Installed as a plugin, `<toolkit>` is
+`${CLAUDE_PLUGIN_ROOT}`. Copied in standalone (vendored into a project's `.claude/skills/`, say),
+`${CLAUDE_PLUGIN_ROOT}` is unset and `<toolkit>` is the folder one level up from this skill. Resolve it
+once and use the real path in every command.
 
-`${CLAUDE_PLUGIN_ROOT}/tools/plan-url.mjs` decodes a **share link** back into markdown (see Usage).
+The authoritative format lives at **`<toolkit>/FORMAT.md`**. **Read it first** — it defines the
+verdict-cell grammar, the escaping rules, and the stoplight vocabulary you parse here. Do not diverge from
+it.
+
+`<toolkit>/tools/plan-url.mjs` decodes a **share link** back into markdown (see Usage).
 
 ## Usage
 
@@ -35,10 +40,10 @@ viewer, or carried in a link (its Verdict cells now hold `🟢` / `🟡 — note
 inside it — decode it, don't fetch it:
 
 ```
-node "${CLAUDE_PLUGIN_ROOT}/tools/plan-url.mjs" --decode "<the link>" --out <guide.md>
+node "<toolkit>/tools/plan-url.mjs" --decode "<the link>" --out <guide.md>
 ```
 
-(Python twin: `python "${CLAUDE_PLUGIN_ROOT}/tools/plan_url.py" --decode "<link>" --out <guide.md>`.)
+(Python twin: `python "<toolkit>/tools/plan_url.py" --decode "<link>" --out <guide.md>`.)
 Quote the link — it contains `#` and `&`. Write it next to the original guide if you can find one, so
 the living record stays in the repo; otherwise ask where it should live. Then carry on as normal — a
 decoded link is an ordinary guide.
@@ -74,7 +79,7 @@ decoded link is an ordinary guide.
    architecturally significant), **ask the user before acting** rather than guessing.
 6. **Re-surface the updated guide with a fresh share link** so the next pass is one click away:
    ```
-   node "${CLAUDE_PLUGIN_ROOT}/tools/plan-url.mjs" <path/to/guide.md> --markdown
+   node "<toolkit>/tools/plan-url.mjs" <path/to/guide.md> --markdown
    ```
    The new link carries the dots you just updated, so the user sees exactly what changed and can
    re-review the rows still open. (`--base <url>` / `ACCEPTANCE_VIEWER_URL` picks the host.)
